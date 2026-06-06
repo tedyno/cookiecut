@@ -1,0 +1,5 @@
+node_modules/
+dist/
+src/worker.gen.js
+.DS_Store
+.idea/

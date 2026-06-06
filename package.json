@@ -1,0 +1,18 @@
+{
+  "name": "cookiecut",
+  "private": true,
+  "scripts": {
+    "build:worker": "bun build src/worker.ts --target=browser --format=esm --minify --outfile=src/worker.gen.js",
+    "dev": "bun run build:worker && bun index.html",
+    "build": "bun run build:worker && bun build index.html --outdir=dist --minify"
+  },
+  "dependencies": {
+    "cdt2d": "^1.0.0",
+    "clipper-lib": "^6.4.2",
+    "three": "^0.184.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.180.0",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cookiecut</title>
+<style>
+  :root {
+    --bg: #1a1b26;
+    --panel: #24283b;
+    --border: #3b4261;
+    --fg: #c0caf5;
+    --muted: #787fa6;
+    --accent: #7aa2f7;
+    --ok: #9ece6a;
+    --err: #f7768e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; height: 100vh; display: flex;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--fg); font-size: 14px;
+  }
+  #sidebar {
+    width: 330px; min-width: 330px; padding: 16px; overflow-y: auto;
+    background: var(--panel); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  h1 { font-size: 16px; margin: 0; }
+  h1 small { color: var(--muted); font-weight: normal; }
+  #drop {
+    border: 2px dashed var(--border); border-radius: 8px; padding: 18px 12px;
+    text-align: center; color: var(--muted); cursor: pointer; transition: border-color .15s;
+  }
+  #drop.over, #drop:hover { border-color: var(--accent); color: var(--fg); }
+  #drop b { color: var(--accent); }
+  fieldset {
+    border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px 12px;
+    display: flex; flex-direction: column; gap: 8px; margin: 0;
+  }
+  legend { color: var(--muted); padding: 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+  label.row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  label.row span { flex: 1; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; vertical-align: baseline; }
+  input[type=number] {
+    width: 76px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 5px;
+    background: var(--bg); color: var(--fg); font: inherit; text-align: right;
+  }
+  input[type=number]:focus { outline: none; border-color: var(--accent); }
+  select {
+    width: 90px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 5px;
+    background: var(--bg); color: var(--fg); font: inherit;
+  }
+  select:focus { outline: none; border-color: var(--accent); }
+  input[type=range] { accent-color: var(--accent); }
+  label.radio { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  label.radio input { accent-color: var(--accent); }
+  label.radio.disabled { color: var(--muted); cursor: not-allowed; }
+  #preview2d { width: 100%; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); cursor: pointer; }
+  #info { color: var(--muted); font-size: 12px; line-height: 1.6; white-space: pre-line; }
+  #status { font-size: 12px; min-height: 16px; }
+  #status.err { color: var(--err); }
+  #status.ok { color: var(--ok); }
+  button {
+    padding: 10px; border: none; border-radius: 8px; background: var(--accent);
+    color: #1a1b26; font: inherit; font-weight: 600; cursor: pointer;
+  }
+  button:hover { filter: brightness(1.1); }
+  button:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+  #viewport { flex: 1; position: relative; }
+  #viewport canvas { display: block; }
+  #hint3d {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--muted); pointer-events: none; font-size: 15px;
+  }
+</style>
+</head>
+<body>
+  <div id="sidebar">
+    <h1>Cookiecut <small>— cookie cutter STL generator</small></h1>
+
+    <div id="drop">
+      <b>Drop SVG / PNG / JPG here</b><br>or click to choose a file
+      <input type="file" id="file" accept=".svg,.png,.jpg,.jpeg,.webp,image/svg+xml,image/png,image/jpeg,image/webp" hidden>
+    </div>
+
+    <fieldset id="rasterFs" style="display:none">
+      <legend>Image vectorization</legend>
+      <label class="row"><span>Brightness threshold</span>
+        <input type="range" id="threshold" min="1" max="254" value="128" style="flex:2">
+        <span id="thresholdVal" style="width:28px;text-align:right;color:var(--muted)">128</span>
+      </label>
+      <label class="radio"><input type="checkbox" id="invert"> invert (light shapes)</label>
+      <label class="row"><span>Simplification</span>
+        <input type="range" id="simplify" min="0.5" max="8" step="0.5" value="2" style="flex:2">
+        <span id="simplifyVal" style="width:28px;text-align:right;color:var(--muted)">2</span>
+      </label>
+      <label class="row"><span>Smoothing (0–3)</span><input type="number" id="smooth" value="1" min="0" max="3" step="1"></label>
+    </fieldset>
+
+    <fieldset id="lineFs">
+      <legend>Cutting line</legend>
+      <label class="radio"><input type="radio" name="line" value="outer" checked> outer perimeter</label>
+      <label class="radio"><input type="radio" name="line" value="center"> line center</label>
+      <label class="radio"><input type="radio" name="line" value="inner"> inner perimeter</label>
+      <label class="radio" style="border-top:1px solid var(--border); padding-top:8px; margin-top:2px">
+        <input type="checkbox" id="allObjects" checked> cut all objects
+      </label>
+      <label class="radio">
+        <input type="checkbox" id="unionAll"> merge all paths (union)
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Parameters (mm)</legend>
+      <label class="row"><span><i class="dot" style="background:#7aa2f7"></i>Cookie width</span><input type="number" id="targetW" value="64" min="5" max="300" step="1"></label>
+      <label class="row"><span><i class="dot" style="background:#f7768e"></i>Wall thickness (blade)</span><input type="number" id="wall" value="0.8" min="0.2" max="5" step="0.1"></label>
+      <label class="row"><span><i class="dot" style="background:#bb9af7"></i>Wall height</span><input type="number" id="height" value="15" min="3" max="60" step="0.5"></label>
+      <label class="row"><span><i class="dot" style="background:#9ece6a"></i>Flange overhang</span><input type="number" id="flangeW" value="4" min="0" max="20" step="0.5"></label>
+      <label class="row"><span><i class="dot" style="background:#e0af68"></i>Flange thickness</span><input type="number" id="flangeT" value="2" min="0.4" max="10" step="0.2"></label>
+      <label class="row"><span>Flange position</span>
+        <select id="flangeAt">
+          <option value="bottom" selected>bottom</option>
+          <option value="top">top</option>
+        </select>
+      </label>
+      <label class="radio" style="border-top:1px solid var(--border); padding-top:8px; margin-top:2px">
+        <input type="checkbox" id="showDims" checked> show dimensions
+      </label>
+    </fieldset>
+
+    <canvas id="preview2d" width="300" height="220"></canvas>
+    <div id="info"></div>
+    <div id="status"></div>
+    <button id="download" disabled>⬇ Download STL</button>
+  </div>
+
+  <div id="viewport">
+    <div id="hint3d">Load a file…</div>
+  </div>
+
+  <script type="module" src="./src/app.ts"></script>
+</body>
+</html>

@@ -2,7 +2,7 @@
 
 **Turn any shape into a 3D-printable cookie cutter.**
 
-Drop in an SVG, PNG or JPG and download a print-ready STL — cutting walls,
+Drop in an SVG, PNG or JPG and download a print-ready STL or 3MF — cutting walls,
 pressing flange and all. Everything runs in your browser; nothing is uploaded
 anywhere.
 
@@ -24,7 +24,8 @@ anywhere.
 - **Parametric** — cookie width, wall thickness & height, flange overhang,
   thickness and position (bottom/top), all with live dimension annotations
   in the 3D preview
-- **Watertight STL by construction** — shells are built from constrained
+- **STL and 3MF export** — 3MF carries explicit mm units and an indexed mesh
+- **Watertight by construction** — shells are built from constrained
   Delaunay caps (cdt2d) and clipper offsets
 - **Fast** — geometry runs in a Web Worker, rebuilds take ~200 ms
 
@@ -51,4 +52,4 @@ dependencies only.
    multi-object mode flanges are clipped against neighbours
 4. **Build solids** — vertical strips + constrained-Delaunay caps assemble
    watertight shells, no 3D booleans needed
-5. **Export** — binary STL in millimetres, z-up
+5. **Export** — binary STL or 3MF in millimetres, z-up

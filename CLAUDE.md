@@ -1,7 +1,7 @@
 # cookiecut
 
 Client-only web app (bun + TypeScript + three.js): generates a cookie cutter
-STL from SVG/PNG/JPG. Everything runs in the browser, geometry in a Web Worker.
+STL/3MF from SVG/PNG/JPG. Everything runs in the browser, geometry in a Web Worker.
 
 ## Commands
 

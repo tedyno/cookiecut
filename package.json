@@ -9,6 +9,7 @@
   "dependencies": {
     "cdt2d": "^1.0.0",
     "clipper-lib": "^6.4.2",
+    "fflate": "^0.8.3",
     "three": "^0.184.0"
   },
   "devDependencies": {

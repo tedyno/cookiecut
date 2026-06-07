@@ -8,6 +8,7 @@ import { createGenerator } from './worker-client';
 import { createViewport } from './scene';
 import { createDims } from './dims';
 import { drawPreview, pickContour, type View2D } from './preview2d';
+import { buildThreeMf } from './threemf';
 
 // ---------------------------------------------------------------------------
 // UI elements
@@ -36,6 +37,7 @@ const els = {
   info: document.getElementById('info')!,
   status: document.getElementById('status')!,
   download: document.getElementById('download') as HTMLButtonElement,
+  download3mf: document.getElementById('download3mf') as HTMLButtonElement,
   hint3d: document.getElementById('hint3d')!,
 };
 
@@ -88,6 +90,7 @@ const generator = createGenerator({
   onError(message) {
     setStatus(message, 'err');
     els.download.disabled = true;
+    els.download3mf.disabled = true;
   },
 });
 
@@ -126,6 +129,7 @@ function applyResult(r: GenResult): void {
     `Overall size: ${r.totalSize.w.toFixed(1)} × ${r.totalSize.h.toFixed(1)} × ${p.height.toFixed(1)} mm\n` +
     `Triangles: ${r.positions.length / 9}`;
   els.download.disabled = false;
+  els.download3mf.disabled = false;
   setStatus('Model generated.', 'ok');
 }
 
@@ -273,14 +277,22 @@ els.preview2d.addEventListener('click', e => {
   }
 });
 
-// STL export (binary)
+// exports: binary STL + 3MF (explicit mm units, indexed mesh)
+function downloadBlob(blob: Blob, filename: string): void {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 els.download.addEventListener('click', () => {
   if (!exportGeometry) return;
   const data = new STLExporter().parse(new THREE.Mesh(exportGeometry), { binary: true }) as DataView<ArrayBuffer>;
-  const blob = new Blob([data], { type: 'model/stl' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `${svgName}_cutter.stl`;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  downloadBlob(new Blob([data], { type: 'model/stl' }), `${svgName}_cutter.stl`);
+});
+
+els.download3mf.addEventListener('click', () => {
+  if (!lastResult) return;
+  downloadBlob(buildThreeMf(lastResult.positions, `${svgName}_cutter`), `${svgName}_cutter.3mf`);
 });

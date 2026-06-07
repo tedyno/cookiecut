@@ -77,7 +77,7 @@
 </head>
 <body>
   <div id="sidebar">
-    <h1>Cookiecut <small>— cookie cutter STL generator</small></h1>
+    <h1>Cookiecut <small>— cookie cutter generator</small></h1>
 
     <div id="drop">
       <b>Drop SVG / PNG / JPG here</b><br>or click to choose a file
@@ -132,7 +132,10 @@
     <canvas id="preview2d" width="300" height="220"></canvas>
     <div id="info"></div>
     <div id="status"></div>
-    <button id="download" disabled>⬇ Download STL</button>
+    <div style="display:flex; gap:8px">
+      <button id="download" disabled style="flex:1">⬇ STL</button>
+      <button id="download3mf" disabled style="flex:1">⬇ 3MF</button>
+    </div>
   </div>
 
   <div id="viewport">

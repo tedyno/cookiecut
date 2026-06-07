@@ -3,7 +3,7 @@
 import type { Contour, GenResult, LineMode, Params, Pt } from './types';
 import { boundsAll, ccw, dedup, perimeter, pointInPoly, rdp, signedArea } from './geo2d';
 import { diffRegions, offsetPoly, simplifyPoly, unionContours } from './clipper2d';
-import { cutterPositions, regionPrism } from './solid';
+import { cutterPositions, displace, regionPrism } from './solid';
 
 const EPS = 0.03; // contour simplification tolerance [mm]
 const GAP = 0.05; // forbidden-zone inflation for flange clipping [mm]
@@ -80,23 +80,38 @@ export function generate(raw: Contour[], p: Params): GenResult {
   cuts = cuts.map(c => rdp(c.map(xf), EPS));
   const displayContours = contours.map(c => c.pts.map(xf));
 
-  // wall: ring cut -> cut+wall, full height; flange: cut+wall -> cut+wall+flangeW
-  const wallOuters = cuts.map(c => rdp(offsetPoly(c, p.wall), EPS));
+  const flangeT = p.flangeW > 0 ? Math.min(p.flangeT, p.height) : 0;
+
+  // blade taper: the outer wall slopes from full thickness to `edge` over the
+  // last `taperH` mm before the cutting edge; the wall loop is the edge loop
+  // displaced outward so both share vertices and loft 1:1 (watertight)
+  const edgeT = Math.min(p.edge, p.wall);
+  const freeH = p.height - flangeT;
+  const taperH = edgeT < p.wall - 1e-6 ? Math.max(0, Math.min(p.taperH, freeH)) : 0;
+  const edgeOuters = cuts.map(c => {
+    if (taperH <= 0) return ccw(dedup(rdp(offsetPoly(c, p.wall), EPS)));
+    // round concave corners (morphological closing) with a radius safely above
+    // the displacement, otherwise the displaced wall loop would self-cross there
+    const closeR = 1.5 * (p.wall - edgeT);
+    const closed = offsetPoly(offsetPoly(offsetPoly(c, edgeT), closeR), -closeR);
+    return ccw(dedup(rdp(closed, EPS)));
+  });
+  const wallOuters = taperH > 0 ? edgeOuters.map(l => displace(l, p.wall - edgeT)) : edgeOuters;
   const flangeOuters = p.flangeW > 0 ? cuts.map(c => rdp(offsetPoly(c, p.wall + p.flangeW), EPS)) : null;
 
-  const flangeT = Math.min(p.flangeT, p.height);
   const chunks: number[][] = [];
   let flangeLoops: Pt[][] | null = null;
   if (cuts.length === 1) {
     // single object: the whole cutter as one watertight body
-    chunks.push(cutterPositions(cuts[0]!, wallOuters[0]!, flangeOuters?.[0] ?? null, p.height, flangeT, p.flangeAt));
+    chunks.push(cutterPositions(cuts[0]!, wallOuters[0]!, edgeOuters[0]!,
+      flangeOuters?.[0] ?? null, p.height, flangeT, p.flangeAt, taperH));
     flangeLoops = flangeOuters ? [flangeOuters[0]!] : null;
   } else {
     // multiple objects: wall without flange + neighbour-clipped flange as a separate prism
     flangeLoops = flangeOuters ? [] : null;
     const placed: Pt[][] = []; // flange regions already claimed
     cuts.forEach((c, i) => {
-      chunks.push(cutterPositions(c, wallOuters[i]!, null, p.height, 0, p.flangeAt));
+      chunks.push(cutterPositions(c, wallOuters[i]!, edgeOuters[i]!, null, p.height, 0, p.flangeAt, taperH));
       if (!flangeOuters) return;
       const otherWalls = wallOuters.filter((_, j) => j !== i);
       const loops = clippedFlangeLoops(c, flangeOuters[i]!, p.wall, otherWalls, placed);

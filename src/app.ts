@@ -23,6 +23,9 @@ const els = {
   flangeW: document.getElementById('flangeW') as HTMLInputElement,
   flangeT: document.getElementById('flangeT') as HTMLInputElement,
   flangeAt: document.getElementById('flangeAt') as HTMLSelectElement,
+  edge: document.getElementById('edge') as HTMLInputElement,
+  taperH: document.getElementById('taperH') as HTMLInputElement,
+  preset: document.getElementById('preset') as HTMLSelectElement,
   unionAll: document.getElementById('unionAll') as HTMLInputElement,
   allObjects: document.getElementById('allObjects') as HTMLInputElement,
   preview2d: document.getElementById('preview2d') as HTMLCanvasElement,
@@ -58,6 +61,8 @@ function readParams(): Params {
     flangeW: +els.flangeW.value,
     flangeT: +els.flangeT.value,
     flangeAt: els.flangeAt.value as FlangeAt,
+    edge: +els.edge.value,
+    taperH: +els.taperH.value,
     lineMode: lineMode(),
     unionAll: els.unionAll.checked,
     allObjects: els.allObjects.checked,
@@ -237,12 +242,37 @@ const debounce = (fn: () => void, ms = 150) => {
   };
 };
 const debouncedRebuild = debounce(() => rebuild());
-for (const id of ['targetW', 'wall', 'height', 'flangeW', 'flangeT'] as const) {
-  els[id].addEventListener('input', debouncedRebuild);
+for (const id of ['targetW', 'wall', 'edge', 'taperH', 'height', 'flangeW', 'flangeT'] as const) {
+  els[id].addEventListener('input', () => {
+    if (id !== 'targetW') els.preset.value = 'custom'; // width is per design, not per profile
+    debouncedRebuild();
+  });
   els[id].addEventListener('focus', () => dims.emphasize(id));
   els[id].addEventListener('blur', () => dims.emphasize(null));
 }
-els.flangeAt.addEventListener('change', () => rebuild());
+els.flangeAt.addEventListener('change', () => {
+  els.preset.value = 'custom';
+  rebuild();
+});
+
+// presets: blade/flange profiles for common dough types (width stays untouched)
+const PRESETS: Record<string, { wall: number; edge: number; taperH: number; height: number; flangeW: number; flangeT: number; flangeAt: FlangeAt }> = {
+  classic: { wall: 0.8, edge: 0.4, taperH: 5, height: 15, flangeW: 4, flangeT: 2, flangeAt: 'bottom' },
+  gingerbread: { wall: 1.2, edge: 0.6, taperH: 8, height: 18, flangeW: 5, flangeT: 2.4, flangeAt: 'bottom' },
+  thin: { wall: 0.8, edge: 0.4, taperH: 6, height: 10, flangeW: 4, flangeT: 1.6, flangeAt: 'bottom' },
+};
+els.preset.addEventListener('change', () => {
+  const p = PRESETS[els.preset.value];
+  if (!p) return; // custom
+  els.wall.value = String(p.wall);
+  els.edge.value = String(p.edge);
+  els.taperH.value = String(p.taperH);
+  els.height.value = String(p.height);
+  els.flangeW.value = String(p.flangeW);
+  els.flangeT.value = String(p.flangeT);
+  els.flangeAt.value = p.flangeAt;
+  rebuild();
+});
 els.showDims.addEventListener('change', () => { dims.group.visible = els.showDims.checked; });
 for (const radio of document.querySelectorAll('input[name=line]')) {
   radio.addEventListener('change', () => rebuild());

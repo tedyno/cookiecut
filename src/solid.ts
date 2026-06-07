@@ -61,6 +61,41 @@ function capAll(loops: Pt[][], z: number, up: boolean): number[] {
 const annulus = (outer: Pt[], hole: Pt[], z: number, up: boolean): number[] =>
   capAll([outer, hole], z, up);
 
+/**
+ * Displace a CCW loop outward along vertex normals (mitered, capped).
+ * Keeps the vertex count, so the result lofts 1:1 against the source —
+ * exact enough for sub-millimetre blade tapers.
+ */
+export function displace(loop: Pt[], d: number): Pt[] {
+  const n = loop.length;
+  return loop.map((p, i) => {
+    const prev = loop[(i - 1 + n) % n]!, next = loop[(i + 1) % n]!;
+    const l1 = Math.hypot(p.x - prev.x, p.y - prev.y) || 1e-12;
+    const l2 = Math.hypot(next.x - p.x, next.y - p.y) || 1e-12;
+    // outward edge normals for a CCW loop
+    const n1 = { x: (p.y - prev.y) / l1, y: -(p.x - prev.x) / l1 };
+    const n2 = { x: (next.y - p.y) / l2, y: -(next.x - p.x) / l2 };
+    let bx = n1.x + n2.x, by = n1.y + n2.y;
+    const bl = Math.hypot(bx, by);
+    if (bl < 1e-9) { bx = n1.x; by = n1.y; } else { bx /= bl; by /= bl; }
+    // miter so the offset distance holds at corners, capped at 2.5x
+    const s = d / Math.max(0.4, bx * n1.x + by * n1.y);
+    return { x: p.x + bx * s, y: p.y + by * s };
+  });
+}
+
+/** Sloped band between two loops with IDENTICAL vertex counts; outward normal */
+function loft(a: Pt[], z1: number, b: Pt[], z2: number): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < a.length; i++) {
+    const p = a[i]!, q = a[(i + 1) % a.length]!;
+    const P = b[i]!, Q = b[(i + 1) % b.length]!;
+    out.push(p.x, p.y, z1, q.x, q.y, z1, Q.x, Q.y, z2,
+             p.x, p.y, z1, Q.x, Q.y, z2, P.x, P.y, z2);
+  }
+  return out;
+}
+
 /** Watertight prism over a region of loops in clipper orientation */
 export function regionPrism(loops: Pt[][], z1: number, z2: number): number[] {
   const pos: number[] = [];
@@ -71,40 +106,52 @@ export function regionPrism(loops: Pt[][], z1: number, z2: number): number[] {
 }
 
 /**
- * Shell of a single cutter: inner (cutting) wall, bottom, outer wall,
- * flange step, flange side, top. One watertight body.
- * flangeOuter=null or T=0 -> wall only, no flange.
+ * Shell of a single cutter: inner (cutting) wall, bottom, outer wall with an
+ * optional blade taper, flange step, flange side, top. One watertight body.
+ *
+ * The outer wall is full `wall` thickness up to the taper zone, then slopes
+ * to `edgeOuter` at the cutting edge (the end away from the flange). The
+ * inner wall stays vertical so the cut keeps its exact size.
+ * `wallOuter` and `edgeOuter` must be pre-prepared (CCW, deduped) and share
+ * the vertex count (edgeOuter displaced -> wallOuter); pass the same loop and
+ * taperH=0 for a straight blade. flangeOuter=null or T=0 -> no flange.
  */
-export function cutterPositions(cutIn: Pt[], wallOuterIn: Pt[], flangeOuterIn: Pt[] | null,
-                                H: number, T: number, flangeAt: FlangeAt): number[] {
+export function cutterPositions(cutIn: Pt[], wallOuter: Pt[], edgeOuter: Pt[],
+                                flangeOuterIn: Pt[] | null,
+                                H: number, T: number, flangeAt: FlangeAt,
+                                taperH: number): number[] {
   const cut = ccw(dedup(cutIn));
-  const wallOuter = ccw(dedup(wallOuterIn));
   const flangeOuter = flangeOuterIn && T > 0 ? ccw(dedup(flangeOuterIn)) : null;
+  const tapered = taperH > 1e-6;
 
   const pos: number[] = [];
   append(pos, strip(cut, 0, H, false));                            // inner (cutting) wall
-  if (flangeOuter && flangeAt === 'bottom') {
-    const z1 = Math.min(H, T);                                     // flange top
-    append(pos, annulus(flangeOuter, cut, 0, false));              // bottom
-    append(pos, strip(flangeOuter, 0, z1, true));                  // flange side
-    if (z1 < H) {
-      append(pos, annulus(flangeOuter, wallOuter, z1, true));      // step above the flange
-      append(pos, strip(wallOuter, z1, H, true));                  // outer wall above the flange
+  if (flangeAt === 'bottom') {
+    // cutting edge at the top
+    const z1 = flangeOuter ? Math.min(H, T) : 0;                   // flange top
+    const zt = Math.max(z1, H - taperH);                           // taper start
+    append(pos, annulus(flangeOuter ?? wallOuter, cut, 0, false)); // bottom
+    if (flangeOuter) {
+      append(pos, strip(flangeOuter, 0, z1, true));                // flange side
+      if (z1 < H) append(pos, annulus(flangeOuter, wallOuter, z1, true)); // step above the flange
     }
-    append(pos, annulus(z1 < H ? wallOuter : flangeOuter, cut, H, true)); // top
-  } else if (flangeOuter) {
-    const z1 = Math.max(0, H - T);                                 // flange bottom
-    append(pos, annulus(z1 > 0 ? wallOuter : flangeOuter, cut, 0, false)); // bottom
-    if (z1 > 0) {
-      append(pos, strip(wallOuter, 0, z1, true));                  // outer wall below the flange
-      append(pos, annulus(flangeOuter, wallOuter, z1, false));     // step below the flange
-    }
-    append(pos, strip(flangeOuter, z1, H, true));                  // flange side
-    append(pos, annulus(flangeOuter, cut, H, true));               // top
+    if (zt > z1 + 1e-6) append(pos, strip(wallOuter, z1, zt, true)); // straight outer wall
+    if (tapered) append(pos, loft(wallOuter, zt, edgeOuter, H));   // blade taper
+    append(pos, annulus(tapered ? edgeOuter : (z1 < H ? wallOuter : flangeOuter!), cut, H, true)); // top
   } else {
-    append(pos, annulus(wallOuter, cut, 0, false));                // bottom
-    append(pos, strip(wallOuter, 0, H, true));                     // outer wall
-    append(pos, annulus(wallOuter, cut, H, true));                 // top
+    // cutting edge at the bottom
+    const z1 = flangeOuter ? Math.max(0, H - T) : H;               // flange bottom
+    const zt = Math.min(z1, taperH);                               // taper end
+    append(pos, annulus(tapered ? edgeOuter : (z1 > 0 ? wallOuter : flangeOuter!), cut, 0, false)); // bottom
+    if (tapered) append(pos, loft(edgeOuter, 0, wallOuter, zt));   // blade taper
+    if (z1 > zt + 1e-6) append(pos, strip(wallOuter, zt, z1, true)); // straight outer wall
+    if (flangeOuter) {
+      if (z1 > 0) append(pos, annulus(flangeOuter, wallOuter, z1, false)); // step below the flange
+      append(pos, strip(flangeOuter, z1, H, true));                // flange side
+      append(pos, annulus(flangeOuter, cut, H, true));             // top
+    } else {
+      append(pos, annulus(wallOuter, cut, H, true));               // top
+    }
   }
   return pos;
 }

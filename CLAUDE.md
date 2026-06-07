@@ -59,6 +59,10 @@ Main thread (DOM/canvas):
 - In multi-object mode flanges are clipped against neighbours' walls/interiors
   and previously placed flanges, with zones inflated by 0.05 mm — coincident
   faces of two bodies would become non-manifold after vertex merging.
+- The blade taper lofts between the edge loop and the same loop displaced
+  outward (identical vertex counts). Concave corners must be rounded first
+  (morphological closing at 1.5x the displacement) or the displaced loop
+  self-crosses and sheds non-manifold fragments.
 - Never spread large arrays into `push(...)` — it overflows the call stack;
   use `append()` / `Float32Array.set`.
 

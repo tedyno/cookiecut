@@ -17,6 +17,8 @@ export interface Dims {
 const COLORS: Record<string, string> = {
   targetW: '#7aa2f7',
   wall: '#f7768e',
+  edge: '#7dcfff',
+  taperH: '#ff9e64',
   height: '#bb9af7',
   flangeW: '#9ece6a',
   flangeT: '#e0af68',
@@ -119,11 +121,38 @@ export function createDims(): Dims {
       v(pwl.x, pwl.y, 0), v(pwl.x, pwl.y, H), v(-1, 0, 0), pwl.x - bb.minx + off * 1.8,
       `wall height ${H.toFixed(1)} mm`, textH);
 
-    // wall thickness — dimension across the blade at the top edge (arrows outside)
+    // blade taper geometry (mirrors the clamping in generate)
+    const flangeOn = !!r.flangeLoops?.length && p.flangeW > 0;
+    const edgeT = Math.min(p.edge, p.wall);
+    const taperH = edgeT < p.wall - 1e-6
+      ? Math.max(0, Math.min(p.taperH, H - (flangeOn ? T : 0))) : 0;
+    const tapered = taperH > 1e-6;
+    const bottomFlange = p.flangeAt === 'bottom';
+    const zEdge = bottomFlange ? H : 0;            // cutting edge level
+    const zWall = bottomFlange ? H - taperH : taperH; // full-thickness level
+
     const pc = maxXPoint(r.cuts);
-    addDimension('wall',
-      v(pc.x, pc.y, H), v(pc.x + p.wall, pc.y, H), v(0, 0, 1), off * 0.7,
-      `wall ${p.wall.toFixed(1)} mm`, textH);
+    if (tapered) {
+      // blade edge — dimension across the tip at the cutting edge (arrows outside)
+      addDimension('edge',
+        v(pc.x, pc.y, zEdge), v(pc.x + edgeT, pc.y, zEdge), v(0, 0, bottomFlange ? 1 : -1), off * 0.7,
+        `edge ${edgeT.toFixed(1)} mm`, textH);
+      // wall thickness — measured where the wall is still full thickness
+      addDimension('wall',
+        v(pc.x, pc.y, zWall), v(pc.x + p.wall, pc.y, zWall), v(0, -1, 0), off * 0.5,
+        `wall ${p.wall.toFixed(1)} mm`, textH);
+      // taper height — vertical dimension along the blade on the right side
+      const pe = maxXPoint(r.wallOuters);
+      addDimension('taperH',
+        v(pe.x, pe.y, Math.min(zWall, zEdge)), v(pe.x, pe.y, Math.max(zWall, zEdge)),
+        v(1, 0, 0), bb.maxx - pe.x + off * 0.9,
+        `taper ${taperH.toFixed(1)} mm`, textH);
+    } else {
+      // wall thickness — dimension across the blade at the cutting edge (arrows outside)
+      addDimension('wall',
+        v(pc.x, pc.y, zEdge), v(pc.x + p.wall, pc.y, zEdge), v(0, 0, bottomFlange ? 1 : -1), off * 0.7,
+        `wall ${p.wall.toFixed(1)} mm`, textH);
+    }
 
     if (r.flangeLoops?.length && p.flangeW > 0) {
       // flange overhang — dimension on the flange top face, wall to edge

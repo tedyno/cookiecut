@@ -21,6 +21,8 @@ anywhere.
   never collide. Or click a single contour in the 2D preview to cut just that
 - **Cutting line choice** for stroked outlines: outer perimeter, line center
   or inner perimeter
+- **Tapered blade** — the outer wall thins toward the cutting edge for
+  cleaner cuts; profile **presets** (classic / gingerbread / thin)
 - **Parametric** — cookie width, wall thickness & height, flange overhang,
   thickness and position (bottom/top), all with live dimension annotations
   in the 3D preview

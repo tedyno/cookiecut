@@ -113,8 +113,18 @@
 
     <fieldset>
       <legend>Parameters (mm)</legend>
+      <label class="row"><span>Preset</span>
+        <select id="preset">
+          <option value="classic" selected>classic</option>
+          <option value="gingerbread">gingerbread</option>
+          <option value="thin">thin / fondant</option>
+          <option value="custom">custom</option>
+        </select>
+      </label>
       <label class="row"><span><i class="dot" style="background:#7aa2f7"></i>Cookie width</span><input type="number" id="targetW" value="64" min="5" max="300" step="1"></label>
       <label class="row"><span><i class="dot" style="background:#f7768e"></i>Wall thickness (blade)</span><input type="number" id="wall" value="0.8" min="0.2" max="5" step="0.1"></label>
+      <label class="row"><span><i class="dot" style="background:#7dcfff"></i>Blade edge</span><input type="number" id="edge" value="0.4" min="0.2" max="5" step="0.1"></label>
+      <label class="row"><span><i class="dot" style="background:#ff9e64"></i>Taper height</span><input type="number" id="taperH" value="5" min="0" max="60" step="0.5"></label>
       <label class="row"><span><i class="dot" style="background:#bb9af7"></i>Wall height</span><input type="number" id="height" value="15" min="3" max="60" step="0.5"></label>
       <label class="row"><span><i class="dot" style="background:#9ece6a"></i>Flange overhang</span><input type="number" id="flangeW" value="4" min="0" max="20" step="0.5"></label>
       <label class="row"><span><i class="dot" style="background:#e0af68"></i>Flange thickness</span><input type="number" id="flangeT" value="2" min="0.4" max="10" step="0.2"></label>

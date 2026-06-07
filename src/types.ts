@@ -18,6 +18,8 @@ export interface Params {
   flangeW: number;   // flange overhang [mm], 0 = no flange
   flangeT: number;   // flange thickness [mm]
   flangeAt: FlangeAt;
+  edge: number;      // blade edge thickness [mm]; >= wall disables the taper
+  taperH: number;    // taper zone height below the cutting edge [mm]
   lineMode: LineMode;
   unionAll: boolean;   // merge all paths before selection
   allObjects: boolean; // a cutter for every standalone object

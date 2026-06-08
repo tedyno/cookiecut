@@ -247,20 +247,28 @@ els.file.addEventListener('change', () => {
   const f = els.file.files?.[0];
   if (f) void loadFile(f);
 });
-for (const ev of ['dragover', 'dragleave', 'drop'] as const) {
-  els.drop.addEventListener(ev, e => {
-    e.preventDefault();
-    els.drop.classList.toggle('over', ev === 'dragover');
-    if (ev === 'drop') {
-      const data = (e as DragEvent).dataTransfer;
-      if (!data) return;
-      const f = data.files[0];
-      if (f) { void loadFile(f); return; }
-      const url = imageUrlFrom(data); // image dragged from another page
-      if (url) void loadUrl(url);
-    }
-  });
+
+function consumeDrop(data: DataTransfer): void {
+  const f = data.files[0];
+  if (f) { void loadFile(f); return; }
+  const url = imageUrlFrom(data); // image dragged from another page
+  if (url) void loadUrl(url);
 }
+
+// the whole window is a drop target — otherwise the browser navigates to a
+// file/image dropped anywhere outside the drop zone (opening it instead)
+window.addEventListener('dragover', e => {
+  e.preventDefault();
+  els.drop.classList.add('over');
+});
+window.addEventListener('dragleave', e => {
+  if (e.relatedTarget === null) els.drop.classList.remove('over'); // left the window
+});
+window.addEventListener('drop', e => {
+  e.preventDefault();
+  els.drop.classList.remove('over');
+  if (e.dataTransfer) consumeDrop(e.dataTransfer);
+});
 
 // paste from clipboard (Cmd/Ctrl+V): an image file, or SVG markup as text
 window.addEventListener('paste', e => {

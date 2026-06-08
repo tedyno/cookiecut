@@ -233,6 +233,25 @@ for (const ev of ['dragover', 'dragleave', 'drop'] as const) {
   });
 }
 
+// paste from clipboard (Cmd/Ctrl+V): an image file, or SVG markup as text
+window.addEventListener('paste', e => {
+  const data = (e as ClipboardEvent).clipboardData;
+  if (!data) return;
+  const file = [...data.items].find(it => it.kind === 'file')?.getAsFile();
+  if (file) {
+    e.preventDefault();
+    void loadFile(file);
+    return;
+  }
+  const text = data.getData('text');
+  if (/<svg[\s>]/i.test(text)) {
+    e.preventDefault();
+    rasterData = null;
+    els.rasterFs.style.display = 'none';
+    loadSvg(text, 'pasted');
+  }
+});
+
 // parameters: debounced rebuild; focus highlights the matching dimension
 const debounce = (fn: () => void, ms = 150) => {
   let t: ReturnType<typeof setTimeout> | null = null;

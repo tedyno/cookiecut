@@ -212,6 +212,31 @@ async function loadFile(f: File): Promise<void> {
   }
 }
 
+/** Load an image dragged/pasted from another page (a URL, not a file) */
+async function loadUrl(url: string): Promise<void> {
+  try {
+    setStatus('Fetching image…');
+    const res = await fetch(url, { mode: 'cors' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const name = new URL(url).pathname.split('/').pop() || 'pasted';
+    await loadFile(new File([blob], name, { type: blob.type }));
+  } catch (e) {
+    console.error(e);
+    // cross-origin servers without CORS headers block the read
+    setStatus('Could not fetch the image (the source site may block it). Save it and drop the file instead.', 'err');
+  }
+}
+
+/** Pull an image URL out of a drag/paste payload (page images carry a URL, not a file) */
+function imageUrlFrom(data: DataTransfer): string | null {
+  const uri = data.getData('text/uri-list') || data.getData('text/plain');
+  if (/^https?:|^data:image\//i.test(uri.trim())) return uri.trim();
+  const html = data.getData('text/html');
+  const m = html.match(/<img[^>]+src="([^"]+)"/i);
+  return m ? m[1]! : null;
+}
+
 // ---------------------------------------------------------------------------
 // events
 // ---------------------------------------------------------------------------
@@ -227,8 +252,12 @@ for (const ev of ['dragover', 'dragleave', 'drop'] as const) {
     e.preventDefault();
     els.drop.classList.toggle('over', ev === 'dragover');
     if (ev === 'drop') {
-      const f = (e as DragEvent).dataTransfer?.files[0];
-      if (f) void loadFile(f);
+      const data = (e as DragEvent).dataTransfer;
+      if (!data) return;
+      const f = data.files[0];
+      if (f) { void loadFile(f); return; }
+      const url = imageUrlFrom(data); // image dragged from another page
+      if (url) void loadUrl(url);
     }
   });
 }
@@ -249,6 +278,12 @@ window.addEventListener('paste', e => {
     rasterData = null;
     els.rasterFs.style.display = 'none';
     loadSvg(text, 'pasted');
+    return;
+  }
+  const url = imageUrlFrom(data); // image copied from another page
+  if (url) {
+    e.preventDefault();
+    void loadUrl(url);
   }
 });
 

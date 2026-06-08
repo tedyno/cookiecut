@@ -1,70 +1,12 @@
-// watertight cookie-cutter solid construction as a triangle soup (xyz by 9)
-//
-// The shell is assembled by hand from vertical strips and horizontal caps —
-// no 3D booleans. Caps are triangulated with constrained Delaunay (cdt2d):
-// it guarantees boundary edges survive triangulation so caps line up with
-// the strips exactly. (earcut/THREE.ShapeUtils does not guarantee this and
-// the mesh ends up leaky.)
-import cdt2d from 'cdt2d';
-import type { FlangeAt, Pt } from './types';
-import { ccw, dedup } from './geo2d';
-
-/** Append an array without spreading — large arrays would overflow the call stack */
-export function append(dst: number[], src: number[]): void {
-  for (let i = 0; i < src.length; i++) dst.push(src[i]!);
-}
-
-/**
- * Vertical strip between z1 and z2 along a contour; outward = normal out.
- * For loops in clipper orientation (outer CCW, holes CW) the same formula
- * points CW hole normals into the hole, i.e. out of the solid — so
- * outward=true is always sufficient.
- */
-function strip(contour: Pt[], z1: number, z2: number, outward: boolean): number[] {
-  const out: number[] = [];
-  for (let i = 0; i < contour.length; i++) {
-    const p = contour[i]!, q = contour[(i + 1) % contour.length]!;
-    if (outward) {
-      out.push(p.x, p.y, z1, q.x, q.y, z1, q.x, q.y, z2,
-               p.x, p.y, z1, q.x, q.y, z2, p.x, p.y, z2);
-    } else {
-      out.push(p.x, p.y, z1, q.x, q.y, z2, q.x, q.y, z1,
-               p.x, p.y, z1, p.x, p.y, z2, q.x, q.y, z2);
-    }
-  }
-  return out;
-}
-
-/** Horizontal cap of a region made of arbitrary loops (incl. holes) at height z; up = +z normal */
-function capAll(loops: Pt[][], z: number, up: boolean): number[] {
-  const ptsAll: Pt[] = [];
-  const edges: [number, number][] = [];
-  for (const loop of loops) {
-    const base = ptsAll.length;
-    for (let i = 0; i < loop.length; i++) {
-      ptsAll.push(loop[i]!);
-      edges.push([base + i, base + (i + 1) % loop.length]);
-    }
-  }
-  const tris = cdt2d(ptsAll.map(p => [p.x, p.y]), edges, { exterior: false, delaunay: false });
-  const out: number[] = [];
-  for (const [a, b, c] of tris) {
-    const A = ptsAll[a]!, B = ptsAll[b]!, C = ptsAll[c]!;
-    const cross = (B.x - A.x) * (C.y - A.y) - (B.y - A.y) * (C.x - A.x);
-    if (up ? cross < 0 : cross > 0) out.push(A.x, A.y, z, C.x, C.y, z, B.x, B.y, z);
-    else out.push(A.x, A.y, z, B.x, B.y, z, C.x, C.y, z);
-  }
-  return out;
-}
-
-/** Annular cap outer/hole — a special case of capAll */
-const annulus = (outer: Pt[], hole: Pt[], z: number, up: boolean): number[] =>
-  capAll([outer, hole], z, up);
+// mesh helpers for the blade taper — the one solid Manifold cannot make
+// directly (extrude only scales cross-sections, it cannot offset them)
+import type { Pt } from './types';
 
 /**
  * Displace a CCW loop outward along vertex normals (mitered, capped).
- * Keeps the vertex count, so the result lofts 1:1 against the source —
- * exact enough for sub-millimetre blade tapers.
+ * Keeps the vertex count, so the result pairs 1:1 with the source loop —
+ * exact enough for sub-millimetre blade tapers. Concave corners must be
+ * pre-rounded (morphological closing) or the result self-crosses.
  */
 export function displace(loop: Pt[], d: number): Pt[] {
   const n = loop.length;
@@ -84,74 +26,54 @@ export function displace(loop: Pt[], d: number): Pt[] {
   });
 }
 
-/** Sloped band between two loops with IDENTICAL vertex counts; outward normal */
-function loft(a: Pt[], z1: number, b: Pt[], z2: number): number[] {
-  const out: number[] = [];
-  for (let i = 0; i < a.length; i++) {
-    const p = a[i]!, q = a[(i + 1) % a.length]!;
-    const P = b[i]!, Q = b[(i + 1) % b.length]!;
-    out.push(p.x, p.y, z1, q.x, q.y, z1, Q.x, Q.y, z2,
-             p.x, p.y, z1, Q.x, Q.y, z2, P.x, P.y, z2);
-  }
-  return out;
-}
+/** Outward skirt of the chamfer wedge — keeps its faces clear of the wall */
+export const WEDGE_SKIRT = 0.5;
 
-/** Watertight prism over a region of loops in clipper orientation */
-export function regionPrism(loops: Pt[][], z1: number, z2: number): number[] {
-  const pos: number[] = [];
-  for (const loop of loops) append(pos, strip(loop, z1, z2, true));
-  append(pos, capAll(loops, z1, false)); // bottom
-  append(pos, capAll(loops, z2, true));  // top
-  return pos;
+export interface WedgeMesh {
+  numProp: 3;
+  vertProperties: Float32Array;
+  triVerts: Uint32Array;
 }
 
 /**
- * Shell of a single cutter: inner (cutting) wall, bottom, outer wall with an
- * optional blade taper, flange step, flange side, top. One watertight body.
- *
- * The outer wall is full `wall` thickness up to the taper zone, then slopes
- * to `edgeOuter` at the cutting edge (the end away from the flange). The
- * inner wall stays vertical so the cut keeps its exact size.
- * `wallOuter` and `edgeOuter` must be pre-prepared (CCW, deduped) and share
- * the vertex count (edgeOuter displaced -> wallOuter); pass the same loop and
- * taperH=0 for a straight blade. flangeOuter=null or T=0 -> no flange.
+ * The chamfer wedge subtracted from the cutter to create the blade taper:
+ * the volume between the sloped face (wall loop at the apex level ->
+ * edge loop at the cutting edge) and an outer skirt. All loops share the
+ * vertex count (displace), so the whole wedge is plain quads — apex ring A,
+ * inner edge ring B, outer ring C. C sits OUTSIDE the wall (the extra
+ * subtracted volume is air) so the wedge faces never coincide with the
+ * wall surface — coincident faces make exact booleans emit degenerate
+ * zero-area triangles.
  */
-export function cutterPositions(cutIn: Pt[], wallOuter: Pt[], edgeOuter: Pt[],
-                                flangeOuterIn: Pt[] | null,
-                                H: number, T: number, flangeAt: FlangeAt,
-                                taperH: number): number[] {
-  const cut = ccw(dedup(cutIn));
-  const flangeOuter = flangeOuterIn && T > 0 ? ccw(dedup(flangeOuterIn)) : null;
-  const tapered = taperH > 1e-6;
+export function wedgeMesh(wallLoop: Pt[], edgeLoop: Pt[], H: number, taperH: number,
+                          flangeAt: 'bottom' | 'top'): WedgeMesh {
+  const n = wallLoop.length;
+  if (edgeLoop.length !== n) throw new Error('Taper loops must share the vertex count.');
+  const bottom = flangeAt === 'bottom'; // flange bottom -> cutting edge on top
+  const zApex = bottom ? H - taperH : taperH;
+  const zEdge = bottom ? H : 0;
+  const outer = displace(wallLoop, WEDGE_SKIRT); // skirt clear of the wall surface
 
-  const pos: number[] = [];
-  append(pos, strip(cut, 0, H, false));                            // inner (cutting) wall
-  if (flangeAt === 'bottom') {
-    // cutting edge at the top
-    const z1 = flangeOuter ? Math.min(H, T) : 0;                   // flange top
-    const zt = Math.max(z1, H - taperH);                           // taper start
-    append(pos, annulus(flangeOuter ?? wallOuter, cut, 0, false)); // bottom
-    if (flangeOuter) {
-      append(pos, strip(flangeOuter, 0, z1, true));                // flange side
-      if (z1 < H) append(pos, annulus(flangeOuter, wallOuter, z1, true)); // step above the flange
-    }
-    if (zt > z1 + 1e-6) append(pos, strip(wallOuter, z1, zt, true)); // straight outer wall
-    if (tapered) append(pos, loft(wallOuter, zt, edgeOuter, H));   // blade taper
-    append(pos, annulus(tapered ? edgeOuter : (z1 < H ? wallOuter : flangeOuter!), cut, H, true)); // top
-  } else {
-    // cutting edge at the bottom
-    const z1 = flangeOuter ? Math.max(0, H - T) : H;               // flange bottom
-    const zt = Math.min(z1, taperH);                               // taper end
-    append(pos, annulus(tapered ? edgeOuter : (z1 > 0 ? wallOuter : flangeOuter!), cut, 0, false)); // bottom
-    if (tapered) append(pos, loft(edgeOuter, 0, wallOuter, zt));   // blade taper
-    if (z1 > zt + 1e-6) append(pos, strip(wallOuter, zt, z1, true)); // straight outer wall
-    if (flangeOuter) {
-      if (z1 > 0) append(pos, annulus(flangeOuter, wallOuter, z1, false)); // step below the flange
-      append(pos, strip(flangeOuter, z1, H, true));                // flange side
-      append(pos, annulus(flangeOuter, cut, H, true));             // top
-    } else {
-      append(pos, annulus(wallOuter, cut, H, true));               // top
-    }
+  const vp = new Float32Array(n * 9);
+  for (let i = 0; i < n; i++) {
+    vp[i * 3] = wallLoop[i]!.x; vp[i * 3 + 1] = wallLoop[i]!.y; vp[i * 3 + 2] = zApex;          // A
+    vp[(n + i) * 3] = edgeLoop[i]!.x; vp[(n + i) * 3 + 1] = edgeLoop[i]!.y; vp[(n + i) * 3 + 2] = zEdge; // B
+    vp[(2 * n + i) * 3] = outer[i]!.x; vp[(2 * n + i) * 3 + 1] = outer[i]!.y; vp[(2 * n + i) * 3 + 2] = zEdge; // C
   }
-  return pos;
+
+  const tv = new Uint32Array(n * 18);
+  let k = 0;
+  const tri = (a: number, b: number, c: number) => {
+    // mirror the winding when the cutting edge is below the apex
+    if (bottom) { tv[k++] = a; tv[k++] = b; tv[k++] = c; }
+    else { tv[k++] = a; tv[k++] = c; tv[k++] = b; }
+  };
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const ai = i, aj = j, bi = n + i, bj = n + j, ci = 2 * n + i, cj = 2 * n + j;
+    tri(ai, bj, aj); tri(ai, bi, bj); // sloped face, normals toward the cut
+    tri(ai, aj, cj); tri(ai, cj, ci); // vertical outer face, normals out
+    tri(bi, ci, cj); tri(bi, cj, bj); // edge-level ring, normals away from the solid
+  }
+  return { numProp: 3, vertProperties: vp, triVerts: tv };
 }

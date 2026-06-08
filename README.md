@@ -27,8 +27,8 @@ anywhere.
   thickness and position (bottom/top), all with live dimension annotations
   in the 3D preview
 - **STL and 3MF export** — 3MF carries explicit mm units and an indexed mesh
-- **Watertight by construction** — shells are built from constrained
-  Delaunay caps (cdt2d) and clipper offsets
+- **Watertight by guarantee** — solids are built with exact 3D booleans
+  ([Manifold](https://github.com/elalish/manifold), WASM)
 - **Fast** — geometry runs in a Web Worker, rebuilds take ~200 ms
 
 ## Running locally
@@ -40,9 +40,9 @@ bun run build      # static build into dist/
 ```
 
 Built with [bun](https://bun.sh), TypeScript, [three.js](https://threejs.org),
-[clipper-lib](https://www.npmjs.com/package/clipper-lib) and
-[cdt2d](https://www.npmjs.com/package/cdt2d) — no server, no CDN, local
-dependencies only.
+[manifold-3d](https://www.npmjs.com/package/manifold-3d) and
+[clipper-lib](https://www.npmjs.com/package/clipper-lib) — no server,
+no CDN, local dependencies only.
 
 ## How it works
 
@@ -50,8 +50,8 @@ dependencies only.
    rasters are thresholded and traced with marching squares
 2. **Pick cutting lines** — containment analysis finds standalone objects
    and their inner outlines
-3. **Offset & clip** — clipper builds the wall and flange rings; in
-   multi-object mode flanges are clipped against neighbours
-4. **Build solids** — vertical strips + constrained-Delaunay caps assemble
-   watertight shells, no 3D booleans needed
+3. **Offset & clip** — Manifold's CrossSection builds the wall and flange
+   rings; in multi-object mode flanges are clipped against neighbours
+4. **Build solids** — extrude + exact 3D booleans (union, taper-wedge
+   subtraction) produce manifold solids by construction
 5. **Export** — binary STL or 3MF in millimetres, z-up

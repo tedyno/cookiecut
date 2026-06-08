@@ -23,12 +23,15 @@ export function buildThreeMf(positions: Float32Array, name: string): Blob {
   const vertices: string[] = [];
   const triangles: string[] = [];
   const indexOf = (x: number, y: number, z: number): number => {
-    const key = `${x},${y},${z}`;
+    // weld by the ROUNDED coordinates — keying on raw floats would emit
+    // duplicate vertices whenever the source differs below the precision
+    const fx = fmt(x), fy = fmt(y), fz = fmt(z);
+    const key = `${fx},${fy},${fz}`;
     let idx = vertexIndex.get(key);
     if (idx === undefined) {
       idx = vertices.length;
       vertexIndex.set(key, idx);
-      vertices.push(`<vertex x="${fmt(x)}" y="${fmt(y)}" z="${fmt(z)}"/>`);
+      vertices.push(`<vertex x="${fx}" y="${fy}" z="${fz}"/>`);
     }
     return idx;
   };

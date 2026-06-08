@@ -9,10 +9,10 @@ const ctx = self as unknown as {
   postMessage(msg: unknown, transfer?: Transferable[]): void;
 };
 
-ctx.onmessage = (e: MessageEvent<Req>) => {
+ctx.onmessage = async (e: MessageEvent<Req>) => {
   const { id, contours, params } = e.data;
   try {
-    const result = generate(contours, params);
+    const result = await generate(contours, params);
     ctx.postMessage({ id, ok: true, result }, [result.positions.buffer]);
   } catch (err) {
     ctx.postMessage({ id, ok: false, error: err instanceof Error ? err.message : String(err) });

@@ -3,3 +3,4 @@ dist/
 src/worker.gen.js
 .DS_Store
 .idea/
+src/manifold-wasm.ts

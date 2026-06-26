@@ -26,8 +26,10 @@
     background: var(--panel); border-right: 1px solid var(--border);
     display: flex; flex-direction: column; gap: 14px;
   }
+  #header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   h1 { font-size: 16px; margin: 0; }
   h1 small { color: var(--muted); font-weight: normal; }
+  #lang { width: auto; padding: 3px 6px; }
   #drop {
     border: 2px dashed var(--border); border-radius: 8px; padding: 18px 12px;
     text-align: center; color: var(--muted); cursor: pointer; transition: border-color .15s;
@@ -77,65 +79,71 @@
 </head>
 <body>
   <div id="sidebar">
-    <h1>Cookiecut <small>— cookie cutter generator</small></h1>
+    <div id="header">
+      <h1>Cookiecut <small data-i18n="app.subtitle">— cookie cutter generator</small></h1>
+      <select id="lang" aria-label="Language">
+        <option value="cs">CZ</option>
+        <option value="en">EN</option>
+      </select>
+    </div>
 
     <div id="drop">
-      <b>Drop SVG / PNG / JPG here</b><br>or click to choose · or paste (⌘V)
+      <b data-i18n="drop.title">Drop SVG / PNG / JPG here</b><br><span data-i18n="drop.sub">or click to choose · or paste (⌘V)</span>
       <input type="file" id="file" accept=".svg,.png,.jpg,.jpeg,.webp,image/svg+xml,image/png,image/jpeg,image/webp" hidden>
     </div>
 
     <fieldset id="rasterFs" style="display:none">
-      <legend>Image vectorization</legend>
-      <label class="row"><span>Brightness threshold</span>
+      <legend data-i18n="raster.legend">Image vectorization</legend>
+      <label class="row"><span data-i18n="raster.threshold">Brightness threshold</span>
         <input type="range" id="threshold" min="1" max="254" value="128" style="flex:2">
         <span id="thresholdVal" style="width:28px;text-align:right;color:var(--muted)">128</span>
       </label>
-      <label class="radio"><input type="checkbox" id="invert"> invert (light shapes)</label>
-      <label class="row"><span>Simplification</span>
+      <label class="radio"><input type="checkbox" id="invert"> <span data-i18n="raster.invert">invert (light shapes)</span></label>
+      <label class="row"><span data-i18n="raster.simplify">Simplification</span>
         <input type="range" id="simplify" min="0.5" max="8" step="0.5" value="2" style="flex:2">
         <span id="simplifyVal" style="width:28px;text-align:right;color:var(--muted)">2</span>
       </label>
-      <label class="row"><span>Smoothing (0–3)</span><input type="number" id="smooth" value="1" min="0" max="3" step="1"></label>
+      <label class="row"><span data-i18n="raster.smooth">Smoothing (0–3)</span><input type="number" id="smooth" value="1" min="0" max="3" step="1"></label>
     </fieldset>
 
     <fieldset id="lineFs">
-      <legend>Cutting line</legend>
-      <label class="radio"><input type="radio" name="line" value="outer" checked> outer perimeter</label>
-      <label class="radio"><input type="radio" name="line" value="center"> line center</label>
-      <label class="radio"><input type="radio" name="line" value="inner"> inner perimeter</label>
+      <legend data-i18n="line.legend">Cutting line</legend>
+      <label class="radio"><input type="radio" name="line" value="outer" checked> <span data-i18n="line.outer">outer perimeter</span></label>
+      <label class="radio"><input type="radio" name="line" value="center"> <span data-i18n="line.center">line center</span></label>
+      <label class="radio"><input type="radio" name="line" value="inner"> <span data-i18n="line.inner">inner perimeter</span></label>
       <label class="radio" style="border-top:1px solid var(--border); padding-top:8px; margin-top:2px">
-        <input type="checkbox" id="allObjects" checked> cut all objects
+        <input type="checkbox" id="allObjects" checked> <span data-i18n="line.allObjects">cut all objects</span>
       </label>
       <label class="radio">
-        <input type="checkbox" id="unionAll"> merge all paths (union)
+        <input type="checkbox" id="unionAll"> <span data-i18n="line.unionAll">merge all paths (union)</span>
       </label>
     </fieldset>
 
     <fieldset>
-      <legend>Parameters (mm)</legend>
-      <label class="row"><span>Preset</span>
+      <legend data-i18n="params.legend">Parameters (mm)</legend>
+      <label class="row"><span data-i18n="params.preset">Preset</span>
         <select id="preset">
-          <option value="classic" selected>classic</option>
-          <option value="gingerbread">gingerbread</option>
-          <option value="thin">thin / fondant</option>
-          <option value="custom">custom</option>
+          <option value="classic" selected data-i18n="preset.classic">classic</option>
+          <option value="gingerbread" data-i18n="preset.gingerbread">gingerbread</option>
+          <option value="thin" data-i18n="preset.thin">thin / fondant</option>
+          <option value="custom" data-i18n="preset.custom">custom</option>
         </select>
       </label>
-      <label class="row"><span><i class="dot" style="background:#7aa2f7"></i>Cookie width</span><input type="number" id="targetW" value="64" min="5" max="300" step="1"></label>
-      <label class="row"><span><i class="dot" style="background:#f7768e"></i>Wall thickness (blade)</span><input type="number" id="wall" value="0.8" min="0.2" max="5" step="0.1"></label>
-      <label class="row"><span><i class="dot" style="background:#7dcfff"></i>Blade edge</span><input type="number" id="edge" value="0.4" min="0.2" max="5" step="0.1"></label>
-      <label class="row"><span><i class="dot" style="background:#ff9e64"></i>Taper height</span><input type="number" id="taperH" value="5" min="0" max="60" step="0.5"></label>
-      <label class="row"><span><i class="dot" style="background:#bb9af7"></i>Wall height</span><input type="number" id="height" value="15" min="3" max="60" step="0.5"></label>
-      <label class="row"><span><i class="dot" style="background:#9ece6a"></i>Flange overhang</span><input type="number" id="flangeW" value="4" min="0" max="20" step="0.5"></label>
-      <label class="row"><span><i class="dot" style="background:#e0af68"></i>Flange thickness</span><input type="number" id="flangeT" value="2" min="0.4" max="10" step="0.2"></label>
-      <label class="row"><span>Flange position</span>
+      <label class="row"><span><i class="dot" style="background:#7aa2f7"></i><span data-i18n="params.targetW">Cookie width</span></span><input type="number" id="targetW" value="64" min="5" max="300" step="1"></label>
+      <label class="row"><span><i class="dot" style="background:#f7768e"></i><span data-i18n="params.wall">Wall thickness (blade)</span></span><input type="number" id="wall" value="0.8" min="0.2" max="5" step="0.1"></label>
+      <label class="row"><span><i class="dot" style="background:#7dcfff"></i><span data-i18n="params.edge">Blade edge</span></span><input type="number" id="edge" value="0.4" min="0.2" max="5" step="0.1"></label>
+      <label class="row"><span><i class="dot" style="background:#ff9e64"></i><span data-i18n="params.taperH">Taper height</span></span><input type="number" id="taperH" value="5" min="0" max="60" step="0.5"></label>
+      <label class="row"><span><i class="dot" style="background:#bb9af7"></i><span data-i18n="params.height">Wall height</span></span><input type="number" id="height" value="15" min="3" max="60" step="0.5"></label>
+      <label class="row"><span><i class="dot" style="background:#9ece6a"></i><span data-i18n="params.flangeW">Flange overhang</span></span><input type="number" id="flangeW" value="4" min="0" max="20" step="0.5"></label>
+      <label class="row"><span><i class="dot" style="background:#e0af68"></i><span data-i18n="params.flangeT">Flange thickness</span></span><input type="number" id="flangeT" value="2" min="0.4" max="10" step="0.2"></label>
+      <label class="row"><span data-i18n="params.flangeAt">Flange position</span>
         <select id="flangeAt">
-          <option value="bottom" selected>bottom</option>
-          <option value="top">top</option>
+          <option value="bottom" selected data-i18n="flangeAt.bottom">bottom</option>
+          <option value="top" data-i18n="flangeAt.top">top</option>
         </select>
       </label>
       <label class="radio" style="border-top:1px solid var(--border); padding-top:8px; margin-top:2px">
-        <input type="checkbox" id="showDims" checked> show dimensions
+        <input type="checkbox" id="showDims" checked> <span data-i18n="params.showDims">show dimensions</span>
       </label>
     </fieldset>
 
@@ -149,7 +157,7 @@
   </div>
 
   <div id="viewport">
-    <div id="hint3d">Load a file…</div>
+    <div id="hint3d" data-i18n="hint3d">Load a file…</div>
   </div>
 
   <script type="module" src="./src/app.ts"></script>

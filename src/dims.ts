@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import type { GenResult, Params, Pt } from './types';
 import { boundsAll } from './geo2d';
+import { t } from './i18n';
 
 export interface Dims {
   /** Group to add into modelGroup (mm, z up) */
@@ -113,13 +114,13 @@ export function createDims(): Dims {
     // cookie width — dimension across the cutting line, front on the plate
     addDimension('targetW',
       v(cutBB.minx, bb.miny, 0), v(cutBB.maxx, bb.miny, 0), v(0, -1, 0), off,
-      `width ${cutBB.w.toFixed(1)} mm`, textH);
+      t('dim.width', { v: cutBB.w.toFixed(1) }), textH);
 
     // wall height — vertical dimension on the left side (flange dims are on the right)
     const pwl = minXPoint(r.wallOuters);
     addDimension('height',
       v(pwl.x, pwl.y, 0), v(pwl.x, pwl.y, H), v(-1, 0, 0), pwl.x - bb.minx + off * 1.8,
-      `wall height ${H.toFixed(1)} mm`, textH);
+      t('dim.wallHeight', { v: H.toFixed(1) }), textH);
 
     // blade taper geometry (mirrors the clamping in generate)
     const flangeOn = !!r.flangeLoops?.length && p.flangeW > 0;
@@ -136,22 +137,22 @@ export function createDims(): Dims {
       // blade edge — dimension across the tip at the cutting edge (arrows outside)
       addDimension('edge',
         v(pc.x, pc.y, zEdge), v(pc.x + edgeT, pc.y, zEdge), v(0, 0, bottomFlange ? 1 : -1), off * 0.7,
-        `edge ${edgeT.toFixed(1)} mm`, textH);
+        t('dim.edge', { v: edgeT.toFixed(1) }), textH);
       // wall thickness — measured where the wall is still full thickness
       addDimension('wall',
         v(pc.x, pc.y, zWall), v(pc.x + p.wall, pc.y, zWall), v(0, -1, 0), off * 0.5,
-        `wall ${p.wall.toFixed(1)} mm`, textH);
+        t('dim.wall', { v: p.wall.toFixed(1) }), textH);
       // taper height — vertical dimension along the blade on the right side
       const pe = maxXPoint(r.wallOuters);
       addDimension('taperH',
         v(pe.x, pe.y, Math.min(zWall, zEdge)), v(pe.x, pe.y, Math.max(zWall, zEdge)),
         v(1, 0, 0), bb.maxx - pe.x + off * 0.9,
-        `taper ${taperH.toFixed(1)} mm`, textH);
+        t('dim.taper', { v: taperH.toFixed(1) }), textH);
     } else {
       // wall thickness — dimension across the blade at the cutting edge (arrows outside)
       addDimension('wall',
         v(pc.x, pc.y, zEdge), v(pc.x + p.wall, pc.y, zEdge), v(0, 0, bottomFlange ? 1 : -1), off * 0.7,
-        `wall ${p.wall.toFixed(1)} mm`, textH);
+        t('dim.wall', { v: p.wall.toFixed(1) }), textH);
     }
 
     if (r.flangeLoops?.length && p.flangeW > 0) {
@@ -159,12 +160,12 @@ export function createDims(): Dims {
       const pf = maxXPoint(r.flangeLoops);
       addDimension('flangeW',
         v(pf.x - p.flangeW, pf.y, zf2), v(pf.x, pf.y, zf2), v(0, 0, 1), off * 0.6,
-        `flange overhang ${p.flangeW.toFixed(1)} mm`, textH);
+        t('dim.flangeOverhang', { v: p.flangeW.toFixed(1) }), textH);
       // flange thickness — vertical dimension on the flange front edge
       const pff = minYPoint(r.flangeLoops);
       addDimension('flangeT',
         v(pff.x, pff.y, zf1), v(pff.x, pff.y, zf2), v(0, -1, 0), off * 0.5,
-        `flange ${T.toFixed(1)} mm`, textH);
+        t('dim.flange', { v: T.toFixed(1) }), textH);
     }
   }
 

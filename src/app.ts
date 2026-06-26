@@ -9,6 +9,7 @@ import { createViewport } from './scene';
 import { createDims } from './dims';
 import { drawPreview, pickContour, type View2D } from './preview2d';
 import { buildThreeMf } from './threemf';
+import { applyStaticI18n, getLang, onLangChange, setLang, t, type Lang } from './i18n';
 
 // ---------------------------------------------------------------------------
 // UI elements
@@ -42,7 +43,15 @@ const els = {
   download: document.getElementById('download') as HTMLButtonElement,
   download3mf: document.getElementById('download3mf') as HTMLButtonElement,
   hint3d: document.getElementById('hint3d')!,
+  lang: document.getElementById('lang') as HTMLSelectElement,
 };
+
+// localization: translate static markup now, wire the language switch, and
+// re-render dynamic content (status/info/dimensions) whenever it changes
+applyStaticI18n();
+els.lang.value = getLang();
+els.lang.addEventListener('change', () => setLang(els.lang.value as Lang));
+onLangChange(() => { if (lastResult) applyResult(lastResult); });
 
 function setStatus(msg: string, cls: '' | 'ok' | 'err' = ''): void {
   els.status.textContent = msg;
@@ -102,7 +111,7 @@ const generator = createGenerator({
 function rebuild({ refit = false }: { refit?: boolean } = {}): void {
   if (!rawContours.length) return;
   refitOnNext = refit || refitOnNext;
-  setStatus('Generating model…');
+  setStatus(t('status.generating'));
   generator.request(rawContours, readParams());
 }
 
@@ -126,16 +135,19 @@ function applyResult(r: GenResult): void {
   view2d = drawPreview(els.preview2d, r, selectedIdx);
   updateControls(r);
 
+  const countLine = r.allMode
+    ? t('info.objects', { basis: r.basisCount, contours: r.contourCount })
+    : t('info.contours', { contours: r.contourCount }) +
+      (r.contourCount > 1 ? t('info.selected', { idx: selectedIdx + 1 }) : '');
+  const cutLabel = r.allMode ? t('info.cutExtent') : t('info.cookie');
   els.info.textContent =
-    (r.allMode
-      ? `Objects: ${r.basisCount} (contours: ${r.contourCount})`
-      : `Contours: ${r.contourCount}` + (r.contourCount > 1 ? ` (selected #${selectedIdx + 1} — click the preview to change)` : '')) + '\n' +
-    `${r.allMode ? 'Cutting lines extent' : 'Cookie (cutting line)'}: ${r.cutSize.w.toFixed(1)} × ${r.cutSize.h.toFixed(1)} mm\n` +
-    `Overall size: ${r.totalSize.w.toFixed(1)} × ${r.totalSize.h.toFixed(1)} × ${p.height.toFixed(1)} mm\n` +
-    `Triangles: ${r.positions.length / 9}`;
+    countLine + '\n' +
+    `${cutLabel}: ` + t('info.size', { w: r.cutSize.w.toFixed(1), h: r.cutSize.h.toFixed(1) }) + '\n' +
+    t('info.overall', { w: r.totalSize.w.toFixed(1), h: r.totalSize.h.toFixed(1), d: p.height.toFixed(1) }) + '\n' +
+    t('info.triangles', { n: r.positions.length / 9 });
   els.download.disabled = false;
   els.download3mf.disabled = false;
-  setStatus('Model generated.', 'ok');
+  setStatus(t('status.modelGenerated'), 'ok');
 }
 
 /** Center/inner only when the base contains something; "all objects" only with several objects */
@@ -208,14 +220,14 @@ async function loadFile(f: File): Promise<void> {
     retrace(true);
   } catch (e) {
     console.error(e);
-    setStatus('Failed to load the image.', 'err');
+    setStatus(t('status.imageLoadFailed'), 'err');
   }
 }
 
 /** Load an image dragged/pasted from another page (a URL, not a file) */
 async function loadUrl(url: string): Promise<void> {
   try {
-    setStatus('Fetching image…');
+    setStatus(t('status.fetching'));
     const res = await fetch(url, { mode: 'cors' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const blob = await res.blob();
@@ -224,7 +236,7 @@ async function loadUrl(url: string): Promise<void> {
   } catch (e) {
     console.error(e);
     // cross-origin servers without CORS headers block the read
-    setStatus('Could not fetch the image (the source site may block it). Save it and drop the file instead.', 'err');
+    setStatus(t('status.fetchFailed'), 'err');
   }
 }
 
